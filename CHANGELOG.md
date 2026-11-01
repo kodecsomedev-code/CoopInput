@@ -1,5 +1,13 @@
 # Changelog
 
+## 12.9.3 — Cross-process hook diagnostics and cursor visibility (2026-11-01)
+- Request only read/write mapping permissions for the game-hook IPC handshake.
+- Capture a small DLL worker startup diagnostic when shared memory cannot be opened.
+- Log secondary virtual-pointer visibility and position changes for troubleshooting.
+- Prevent repeated cursor redraws while input forwarding is OFF.
+- Verify a real Windows x64 cross-process DLL handshake before packaging installers.
+- These checks do not guarantee compatibility with protected games or Roblox.
+
 ## 12.9.2 — Safe startup and emergency mouse recovery (2026-11-01)
 - Always start with Input OFF, even when the previous session saved it as ON.
 - Keep saved device assignments pending until the user explicitly restores them.

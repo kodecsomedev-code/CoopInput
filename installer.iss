@@ -1,5 +1,5 @@
 #define AppName "CoopInput"
-#define AppVersion "12.9.2"
+#define AppVersion "12.9.3"
 #define AppPublisher "CoopInput Contributors"
 
 [Setup]

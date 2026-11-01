@@ -433,6 +433,28 @@ static void handle(const Ev *e)
 }
 
 /* ---------- boot ---------- */
+/* Before the shared mapping opens, status bytes cannot reach the controller.
+ * Write a small, non-sensitive diagnostic in the same user profile instead. */
+static void startup_diagnostic(const char *phase, DWORD winerr)
+{
+    char folder[MAX_PATH], path[MAX_PATH], line[192];
+    DWORD n = GetEnvironmentVariableA("LOCALAPPDATA", folder, sizeof(folder));
+    if (!n || n >= sizeof(folder)) return;
+    int path_len = snprintf(path, sizeof(path), "%s\\CoopInput\\hook_startup_%lu.log",
+                            folder, GetCurrentProcessId());
+    if (path_len < 0 || path_len >= (int)sizeof(path)) return;
+    HANDLE f = CreateFileA(path, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                           NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (f == INVALID_HANDLE_VALUE) return;
+    int count = snprintf(line, sizeof(line), "pid=%lu phase=%s winerr=%lu\r\n",
+                         GetCurrentProcessId(), phase, winerr);
+    if (count > 0 && count < (int)sizeof(line)) {
+        DWORD written;
+        WriteFile(f, line, (DWORD)count, &written, NULL);
+    }
+    CloseHandle(f);
+}
+
 static void fail_boot(unsigned stage, HANDLE fm)
 {
     if (g_sh && g_sh->magic == MAGIC) boot_status(stage);
@@ -456,12 +478,26 @@ static DWORD WINAPI boot(LPVOID unused)
 {
     (void)unused;
     char name[64];
+    startup_diagnostic("thread-started", 0);
     snprintf(name, sizeof name, "CoopInput_%lu", GetCurrentProcessId());
-    HANDLE fm = OpenFileMappingA(FILE_MAP_ALL_ACCESS, FALSE, name);
-    if (!fm) fail_boot(0x86, NULL);
-    g_sh = (Shared *)MapViewOfFile(fm, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(Shared));
-    if (!g_sh || g_sh->magic != MAGIC) fail_boot(0x87, fm);
+    /* The hook needs read/write access, not standard rights such as WRITE_DAC.
+     * Requesting ALL_ACCESS can fail on mappings created by other processes. */
+    HANDLE fm = OpenFileMappingA(FILE_MAP_READ | FILE_MAP_WRITE, FALSE, name);
+    if (!fm) {
+        startup_diagnostic("OpenFileMappingA", GetLastError());
+        fail_boot(0x86, NULL);
+    }
+    g_sh = (Shared *)MapViewOfFile(fm, FILE_MAP_READ | FILE_MAP_WRITE, 0, 0, sizeof(Shared));
+    if (!g_sh) {
+        startup_diagnostic("MapViewOfFile", GetLastError());
+        fail_boot(0x87, fm);
+    }
+    if (g_sh->magic != MAGIC) {
+        startup_diagnostic("mapping-magic-mismatch", 0);
+        fail_boot(0x87, fm);
+    }
     CloseHandle(fm);  /* The mapped view keeps the shared section alive. */
+    startup_diagnostic("shared-memory-ready", 0);
     g_sh->pad[1] = HOOK_MODE_RAW | HOOK_MODE_LEGACY;
     boot_status(BOOT_MEMORY_READY);
     InitializeCriticalSection(&g_cs);
