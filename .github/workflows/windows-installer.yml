@@ -1,0 +1,44 @@
+name: Windows installer
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: ["main"]
+    tags: ["v*"]
+
+jobs:
+  build:
+    runs-on: windows-2022
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          architecture: 'x64'
+      - name: Validate source and run offline regressions
+        shell: pwsh
+        run: |
+          python tools/check_release.py
+          Get-ChildItem -Filter 'test_*.py' | ForEach-Object {
+            python $_.FullName
+            if ($LASTEXITCODE -ne 0) { throw "Regression failed: $($_.Name)" }
+          }
+      - name: Install Inno Setup 6
+        shell: pwsh
+        run: choco install innosetup -y --no-progress
+      - name: Check clean source and build installer
+        shell: pwsh
+        run: .\BUILD_RELEASE.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CoopInput-12.9.0-Windows-Installer
+          path: output/CoopInput-Setup-12.9.0.exe
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CoopInput-12.9.0-Portable
+          path: dist/CoopInput/
+          if-no-files-found: error
