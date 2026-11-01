@@ -4,7 +4,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
-Write-Host 'CoopInput 12.9.0 — Windows build' -ForegroundColor Cyan
+Write-Host 'CoopInput 12.9.1 — Windows build' -ForegroundColor Cyan
 if (-not $IsWindows -and $PSVersionTable.PSEdition -ne 'Desktop') {
     throw 'Run this script on Windows x64 with PowerShell.'
 }
@@ -69,8 +69,8 @@ if (-not $SkipInstaller) {
     Write-Host 'Compiling Inno Setup installer...' -ForegroundColor Cyan
     & $iscc 'installer.iss'
     if ($LASTEXITCODE -ne 0) { throw 'Inno Setup compilation failed.' }
-    if (-not (Test-Path 'output/CoopInput-Setup-12.9.0.exe')) { throw 'Installer not produced.' }
-    Write-Host 'SUCCESS: output/CoopInput-Setup-12.9.0.exe' -ForegroundColor Green
+    if (-not (Test-Path 'output/CoopInput-Setup-12.9.1.exe')) { throw 'Installer not produced.' }
+    Write-Host 'SUCCESS: output/CoopInput-Setup-12.9.1.exe' -ForegroundColor Green
 }
 Write-Host 'Standalone app: dist/CoopInput/CoopInput.exe' -ForegroundColor Green
 if ($includeInterception) { Write-Host 'Bundled: both CoopInput game hook and Interception user-mode DLL.' -ForegroundColor Green }

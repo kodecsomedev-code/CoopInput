@@ -1,5 +1,5 @@
 """
-CoopInput v12.9 - v8 engine / virtual desktop dragging / polished device board, strict input isolation and automatic keyboard detection
+CoopInput v12.9.1 - v8 engine / virtual desktop dragging / polished device board, strict input isolation and automatic keyboard detection
 - Arraste dispositivos (mouse/teclado) entre areas: Dispositivos, Jogador 1..4
 - Jogador 1 = principal (cursor normal do Windows). Jogadores 2+ = isolados,
   cada um com cursor virtual proprio (cor diferente) e tela escolhida.
@@ -1472,7 +1472,7 @@ def make_overlay(root, color, fallback_color=None):
 class App:
     def __init__(self, root):
         self.root = root
-        root.title("CoopInput  ·  Studio v12.9")
+        root.title("CoopInput  ·  Studio v12.9.1")
         try:
             icon_file = os.path.join(HERE, "CoopInput.ico")
             if os.path.isfile(icon_file):

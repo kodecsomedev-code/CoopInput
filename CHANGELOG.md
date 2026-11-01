@@ -1,5 +1,12 @@
 # Changelog
 
+## 12.9.1 — Game-hook startup repair (2026-11-01)
+- Allow the C hook's full game-window detection window before reporting timeout.
+- Report injection initialization stages and unload failed hooks for clean retries.
+- Restore a reproducible Windows CI build from unpacked source files.
+- Prefer the selected Python environment instead of an arbitrary newer launcher version.
+- Roblox client injection remains unsupported; Minecraft Java compatibility requires real-device testing.
+
 ## 12.9.0 — Open-source packaging kit (2026-10-12)
 - Preserves CoopInput v12.9 keyboard/mouse controller and game-hook source.
 - Adds PyInstaller onedir Windows application build, Inno Setup installer,
