@@ -1,5 +1,12 @@
 # Changelog
 
+## 12.9.2 — Safe startup and emergency mouse recovery (2026-11-01)
+- Always start with Input OFF, even when the previous session saved it as ON.
+- Keep saved device assignments pending until the user explicitly restores them.
+- Make Input OFF pass secondary physical mouse and keyboard events to Windows.
+- Close the Interception context on capture-thread failures to release devices.
+- Add a confirmation before restoring assignments that can take over a mouse.
+
 ## 12.9.1 — Game-hook startup repair (2026-11-01)
 - Allow the C hook's full game-window detection window before reporting timeout.
 - Report injection initialization stages and unload failed hooks for clean retries.

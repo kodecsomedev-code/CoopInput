@@ -4,7 +4,7 @@
 
 CoopInput is an open-source Windows application that assigns physical keyboards and mice to different players, routes secondary input to compatible games, and displays independent virtual mouse pointers. It's designed for local multiplayer, multi-device experiments, and advanced desktop control—without handing Player 2's physical mouse over to Player 1's system cursor.
 
-> **Source candidate:** v12.9.1 (unreleased; Windows CI artifact available after successful build) · **Platform:** Windows 10/11, 64-bit · **Core:** Python + C/Win32 · **App source license:** MIT (third-party components have their own terms)
+> **Source candidate:** v12.9.2 (unreleased; Windows CI artifact available after successful build) · **Platform:** Windows 10/11, 64-bit · **Core:** Python + C/Win32 · **App source license:** MIT (third-party components have their own terms)
 
 ## Features
 
@@ -83,7 +83,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\BUILD_RELEASE.ps1
 When successful, the script builds the game-hook DLL, uses PyInstaller to bundle the Windows app, and produces the installer at:
 
 ```text
-output/CoopInput-Setup-12.9.1.exe
+output/CoopInput-Setup-12.9.2.exe
 ```
 
 For direct Python development, install the required Interception library and driver as documented, then run:
@@ -100,6 +100,17 @@ CoopInput's **original application code is MIT-licensed** and welcomes forks, bu
 
 - **Interception** (external keyboard/mouse driver and library) has **separate distribution terms**; the complete driver stack is **not wholly open source**. Review [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) and [`DRIVER_SETUP.md`](DRIVER_SETUP.md) before redistributing binaries, particularly for commercial use.
 - **MinHook** is a third-party component with its own permissive license and notices.
+
+## Safe startup and mouse recovery (12.9.2)
+
+To prevent a saved Player 2 assignment from taking over the Windows mouse unexpectedly,
+CoopInput now **always opens with Input OFF** and leaves saved device assignments
+unclaimed. Drag devices onto player cards manually, or choose **Restore saved** and
+confirm the warning. Turn **Input ON** only when you have a second physical input
+method available. **Input OFF** returns even assigned secondary mice and keyboards
+immediately to normal Windows control; **Ctrl+Alt+F12** remains the emergency
+release shortcut. If the capture thread fails, its driver context is now closed
+in a `finally` block.
 
 ## Game-hook initialization diagnostics (unreleased fix)
 

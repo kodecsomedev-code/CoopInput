@@ -4,6 +4,19 @@ This guide applies to the **unreleased** source repair, not the old installer or
 source ZIP committed before it. The game hook is an experimental Windows x64
 input-compatibility layer, not a guarantee of independent native mouse/keyboard seats.
 
+## Safe startup in 12.9.2
+
+- Input forwarding starts **OFF** on every launch, even if the prior session
+  saved it as ON. All physical mouse/keyboard packets are returned to Windows.
+- Previously saved Player 2 assignments are **not activated automatically**.
+  Assign devices by dragging, or click **Restore saved**, read the warning and
+  confirm when another mouse/trackpad is available.
+- Once you have deliberately assigned devices, click **Input ON**. Switching
+  **Input OFF** restores normal Windows control immediately.
+- If a mouse gets trapped, press **Ctrl+Alt+F12** on one physical keyboard.
+  If necessary, use the keyboard to close CoopInput. Avoid launching an older
+  installer that automatically restores captured devices.
+
 ## Before attaching
 
 1. Install CoopInput and the official Interception driver separately as documented in

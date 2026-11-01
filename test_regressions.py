@@ -49,7 +49,7 @@ mouse_src=ast.get_source_segment(s,functions['on_mouse'])
 assert 'lk.push(EV_MOVE, dx, dy)' in mouse_src and 'lk.push(EV_BTN, idx, int(down_now))' in mouse_src
 assert 'desktop_mouse_button(player, idx, down_now)' in mouse_src
 # The v8 keyboard logic remains unchanged AFTER the new routing guard.
-assert [ast.dump(n,include_attributes=False) for n in (functions['on_key'].body[:9]+functions['on_key'].body[11:])]==[ast.dump(n,include_attributes=False) for n in v8f['on_key'].body],'on_key v8 keyboard tail modified'
+assert [ast.dump(n,include_attributes=False) for n in (functions['on_key'].body[:9]+functions['on_key'].body[12:])]==[ast.dump(n,include_attributes=False) for n in v8f['on_key'].body],'on_key v8 keyboard tail modified beyond safety guards'
 print('PASS: v8 mouse events, keyboard tail and hook ABI source preserved')
 
 # Monitor changes should never mutate device-to-player mapping, even during desktop mode.
@@ -128,4 +128,33 @@ assert 'boot_status(BOOT_READY)' in hook_src
 assert 'if (MH_EnableHook(MH_ALL_HOOKS) != MH_OK)' in hook_src
 assert 'FreeLibraryAndExitThread(g_mod, stage)' in hook_src
 print('PASS: game-hook startup timeout, failure stages and retryable DLL cleanup')
+
+# Startup must NEVER take physical ownership of saved devices silently.
+state_initializer = next(node for node in tree.body if isinstance(node,ast.Assign)
+    and any(isinstance(t,ast.Name) and t.id=='state' for t in node.targets))
+ns={}
+exec(compile(ast.fix_missing_locations(ast.Module(body=[state_initializer],type_ignores=[])),str(SRC),'exec'),ns)
+assert ns['state']['forward'] is False
+class SavedUI:
+    saved={'mouse#0':2,'keyboard#0':2}
+    saved_profiles={}
+    saved_maxcodes={}
+    saved_cursor_hotkeys={}
+    applied=set()
+    restore_saved_on_start=False
+    def dev_keys(self): return {12:'mouse#0',2:'keyboard#0'}
+ui=SavedUI()
+owners={}
+sync=extract('sync_devices',True,{'assign':owners,'state':{'players':2},
+    'keyboard_profiles':{},'keyboard_maxcode':{},'PROFILE_LABELS':{'auto':'Auto'},
+    'cursor_hotkeys':{},'seen':set(),'log':types.SimpleNamespace(info=lambda *a:None),
+    'dev_name':lambda d:str(d)})
+sync(ui)
+assert owners=={}, 'saved Player 2 devices captured at startup'
+ui.restore_saved_on_start=True
+ui.applied.clear()
+sync(ui)
+assert owners=={12:2,2:2}, 'explicit saved-device restore did not work'
+assert 'def _capture_events(ctx):' in s and 'finally:\n        # Even an unexpected input-processing exception' in s
+print('PASS: safe unarmed startup, explicit saved-device restore, and context cleanup')
 print('ALL v12 OFFLINE TESTS PASSED')
