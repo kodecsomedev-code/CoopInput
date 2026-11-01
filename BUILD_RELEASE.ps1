@@ -8,16 +8,17 @@ Write-Host 'CoopInput 12.9.0 — Windows build' -ForegroundColor Cyan
 if (-not $IsWindows -and $PSVersionTable.PSEdition -ne 'Desktop') {
     throw 'Run this script on Windows x64 with PowerShell.'
 }
-$py = Get-Command py -ErrorAction SilentlyContinue
-if ($py) { $python = @('py', '-3') }
-elseif (Get-Command python -ErrorAction SilentlyContinue) { $python = @('python') }
-else { throw 'Python x64 not found. Install Python first.' }
+# Prefer the active PATH environment (including actions/setup-python and venvs).
+# `py -3` may select a newer, unsupported Python even when CI has pinned 3.14.
+$activePython = Get-Command python -ErrorAction SilentlyContinue
+if ($activePython) { $pythonExe = $activePython.Source; $pythonPrefix = @() }
+elseif (Get-Command py -ErrorAction SilentlyContinue) { $pythonExe = 'py'; $pythonPrefix = @('-3') }
+else { throw 'Python x64 not found. Install Python 3.11–3.14 first.' }
 function Invoke-Py([string[]] $argList) {
-    if ($python.Count -eq 2) { & py -3 @argList }
-    else { & python @argList }
+    & $pythonExe @pythonPrefix @argList
     if ($LASTEXITCODE -ne 0) { throw "Python command failed: $argList" }
 }
-Invoke-Py -argList @('-c', 'import platform,sys; assert sys.maxsize > 2**32, "Python must be x64"; print(sys.version)')
+Invoke-Py -argList @('-c', 'import sys; assert sys.maxsize > 2**32, "Python must be x64"; assert (3,11) <= sys.version_info[:2] <= (3,14), "Use Python 3.11-3.14"; print(sys.version)')
 Invoke-Py -argList @('tools/check_release.py')
 if (-not $SkipHookBuild) {
     Write-Host 'Building game hook from C source...' -ForegroundColor Cyan
