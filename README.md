@@ -1,146 +1,81 @@
-# CoopInput
+# CoopInput — multi-keyboard and multi-mouse controller for Windows
 
-**Multiple keyboards. Multiple mice. Independent controls. One Windows PC.**
+**Open-source application source · Windows 10/11 x64 · CoopInput v12.9 core**
 
-CoopInput is an open-source Windows application that assigns physical keyboards and mice to different players, routes secondary input to compatible games, and displays independent virtual mouse pointers. It's designed for local multiplayer, multi-device experiments, and advanced desktop control—without handing Player 2's physical mouse over to Player 1's system cursor.
+CoopInput assigns keyboards and mice to up to four players, supports drag-and-
+drop device assignment, attached game windows, and independent **virtual**
+pointers with customizable colors, cursor shapes, and desktop interactions.
+It is built around the stable v8 game-input engine.
 
-> **Source candidate:** v12.9.2 (unreleased; Windows CI artifact available after successful build) · **Platform:** Windows 10/11, 64-bit · **Core:** Python + C/Win32 · **App source license:** MIT (third-party components have their own terms)
+> **Platform limitation:** Windows has only one standard system pointer and
+> keyboard focus. CoopInput's other cursors are virtual; some apps, games,
+> taskbar actions, native drag-and-drop and protected windows cannot be
+> controlled exactly like Player 1's physical pointer.
 
-## Features
+## For normal users: install
 
-### 🎮 Local multiplayer and device assignment
+1. Download the `CoopInput-Setup-*.exe` installer artifact from a **trusted**
+   project release or build one yourself (see below).
+2. Follow the installer; it makes Start Menu shortcuts and adds an uninstaller.
+3. Set up the external Interception driver/library following `DRIVER_SETUP.md`.
+   The kernel driver is NOT included in the installer. Local builds can include the official x64 `interception.dll` when supplied in `vendor/Interception/x64/`.
+4. Launch CoopInput, assign secondary devices, and open your games normally.
 
-- Assign physical **keyboards and mice to up to four players**.
-- **Drag and drop** devices between player cards in the control panel.
-- Choose a **monitor for each secondary player** without changing the device's player assignment.
-- Attach a compatible **already-running game window manually**.
-- Keep Player 2's keyboard and mouse input separate from Player 1's standard Windows input.
-- Forward keyboard and mouse events to compatible game windows through the C game hook, including **RAW, LEGACY and BOTH** mouse-input modes.
-- Preserve the v8 game-input fixes, including protection against keyboard-generated camera spinning in Minecraft Java.
-- **No built-in dual-game-instance launcher:** open your game instances with your preferred launcher and attach them manually.
+## Build an installer yourself (Windows)
 
-### ⌨️ Keyboard support
+1. Install **Python x64 (3.11–3.14)** with `py` launcher, **Visual Studio C++
+   Build Tools** with MSVC x64, and **Inno Setup 6**.
+2. Clone/download this repository, open PowerShell inside it.
+3. Run `powershell -NoProfile -ExecutionPolicy Bypass -File .\BUILD_RELEASE.ps1`.
+4. Find `output/CoopInput-Setup-12.9.3.exe` and the unpacked `dist/CoopInput/`.
+5. To run it, install the external Interception driver and DLL as documented.
 
-- **Automatic keyboard identification / layout estimation** from available device information and observed keys.
-- Labels for compact, full-size, expanded and **custom** keyboards; layouts are *not* artificial limits on recognized keys.
-- Custom scan-code range where needed, plus modifier and key-state handling.
-- Optional **Windows keyboard passthrough** for the assigned player, including shortcuts such as the Windows key, Alt+Tab and F11 when supported by the focused application.
-- Keyboard passthrough **does not turn the secondary physical mouse into the primary Windows mouse**.
-- Configurable keyboard shortcuts for secondary-cursor visibility and Windows keyboard mode.
+If the official `vendor/Interception/x64/interception.dll` is present, the installer includes it automatically (noncommercial licensing conditions apply). The script builds `coopinput_hook.dll` from source using the **existing v8 C
+hook** and MinHook, packages Python with PyInstaller, and compiles an Inno Setup
+installer. Windows users do NOT need Python after installing the resulting app.
+No unverified third-party binary is silently fetched or installed by CoopInput.
 
-### 🖱️ Independent virtual pointers
+For a faster portable development run, install the official x64 Interception
+library beside `coopinput.py` and run `py -3 coopinput.py`.
 
-- Each secondary player has their own **visible virtual cursor**, screen position and mouse-button state.
-- Use **actual Windows system cursor shapes** (arrow, hand, I-beam, resize, move, etc.), selected through best-effort hit testing.
-- **Change the cursor color separately for each player** with presets, a custom RGB picker, or the original Windows appearance.
-- **Automatically hide the virtual cursor during compatible fullscreen/gameplay capture**, show it in menus, or toggle it with a configurable keyboard/mouse shortcut.
-- Set cursor visibility to automatic, always visible, or always hidden.
-- Three desktop pointer-sensitivity profiles (**Precision, Normal, Fast**); optional profile switching using mouse side buttons.
+## Open-source collaboration
 
-### 🖥️ Virtual desktop mouse actions
+Original CoopInput code is released under **MIT** (subject to contributors'
+rights to grant this license). You can fork it, open issues, send pull requests,
+modify the UI and mouse routing, and build your own version.
+See `CONTRIBUTING.md`, `docs/LICENSING.md`, and `THIRD_PARTY_NOTICES.md`.
+The external Interception *driver* has separate terms and is **not** wholly
+open source; avoid describing the entire stack as fully open source.
 
-The virtual desktop interaction layer supports or attempts the following actions in compatible Windows applications:
+## Build automatically on GitHub
 
-- Hover, left/right/middle click, **double-click**, and longer click sequences (including triple and quadruple clicks).
-- **Click-and-hold**, left/right dragging, window title-bar movement, edge/corner resizing, text and marquee selection where applications accept virtual input.
-- **Ctrl/Shift/Alt**-modified mouse actions, multiple held buttons, and mouse chording.
-- Vertical and horizontal scrolling, Shift+scroll substitution, and Ctrl+wheel zoom where the target application supports them.
-- Side-button **Back/Forward** events, optional middle-button auto-scroll, and optional click-to-focus for desktop applications.
-- Optional accessibility tools: **ClickLock**, dwell-to-click, and **NumPad Mouse Keys**.
-- Best-effort taskbar activation using **Windows UI Automation**, with accessibility and Win32-message fallbacks.
-- Best-effort interactions with common desktop applications and accessible browser controls.
+Push this clean repository to GitHub. In **Actions → Windows installer →
+Run workflow**, the job builds the source, portable app, and installer on a
+Windows runner and attaches downloadable artifacts to the build. No secrets or
+local device settings are included. This does not publish a release automatically.
 
-**Compatibility note:** This is a *virtual* cursor, not an additional native Windows mouse seat. Some apps ignore posted input messages or require real OS mouse capture. Native Explorer file drag-and-drop, secure/elevated windows, certain Windows 11 taskbar actions, and browser interactions are **not universally supported**. Hardware DPI switches and mechanical free-scroll are controlled by the mouse itself, not by CoopInput. Windows still has one shared keyboard focus.
+## Privacy, permissions and anti-cheat
 
-### 🎨 Interface and safety
+- Inputs are processed locally. No account, telemetry, or cloud service is
+  included in the uploaded application source.
+- The Interception driver requires admin permission to **install** (not to run
+  the app as a normal user, though some games need additional privileges).
+- Game-hook injection may trigger anti-cheat or antivirus warnings. Use only
+  with offline/LAN games and on systems where you have permission.
+- Logs and user-specific device assignments are kept in
+  `%LOCALAPPDATA%\CoopInput\` for the installed EXE, not inside the installer.
+- Emergency release: **Ctrl + Alt + F12** (from the existing application).
 
-- **Dark/light themes**, modern device cards and a drag-and-drop player-assignment board.
-- Device status, game attachment controls, monitor selection and per-player configuration.
-- Saved settings and logs in **`%LOCALAPPDATA%\CoopInput`** for installed builds.
-- **Emergency release: Ctrl + Alt + F12**.
-- No cloud account or telemetry service is included in the supplied application source; input processing is local.
+## Original feature guide
 
-## Get started
+See `docs/FEATURES_V12_9.md` for the complete feature history and controls.
 
-### Install the Windows app
+## Local build with both DLLs included
 
-1. Download a trusted **`CoopInput-Setup-*.exe`** installer from the project's Releases page (when a release is published), or build the installer from source.
-2. Install CoopInput with the Windows installer.
-3. Install the external **Interception kernel driver** separately, with administrator approval, following [`DRIVER_SETUP.md`](DRIVER_SETUP.md). The driver is **not** silently installed by CoopInput.
-4. Launch CoopInput, connect your keyboards and mice, and drag each device onto the desired player.
-5. Open a compatible game normally, then use **Attach game** to connect the selected game window.
+This release kit includes a copy of the x64 `interception.dll` from the uploader's functioning v12.9 distribution, **for building and testing under the upstream noncommercial terms**. The original DLL is under `vendor/Interception/x64/interception.dll` and is excluded from Git by `.gitignore`.
 
-The installer's game-hook DLL is built from the included C source. Local installer builds may bundle the official x64 `interception.dll` when supplied and redistributed under its separate licensing terms; public source checkouts do not automatically include it.
+Run `powershell -NoProfile -ExecutionPolicy Bypass -File .\BUILD_RELEASE.ps1` on Windows to compile the v8 game hook, bundle both DLLs, and create the installer. No manual DLL copying is required by the person installing this local build.
 
-### Build from source
+**Still required:** the Interception **kernel driver**, a different component, must be installed with administrator approval following the official upstream instructions. This kit does not silently install a system driver. See `DRIVER_SETUP.md`.
 
-Requirements: **Windows x64, Python 3.11–3.14, Visual Studio C++ Build Tools (x64/MSVC), and Inno Setup 6**.
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\BUILD_RELEASE.ps1
-```
-
-When successful, the script builds the game-hook DLL, uses PyInstaller to bundle the Windows app, and produces the installer at:
-
-```text
-output/CoopInput-Setup-12.9.2.exe
-```
-
-For direct Python development, install the required Interception library and driver as documented, then run:
-
-```powershell
-py -3 coopinput.py
-```
-
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) for development information and the automated tests (`test_*.py`). Windows hardware and game compatibility must still be tested on an actual Windows machine.
-
-## Open source and licensing
-
-CoopInput's **original application code is MIT-licensed** and welcomes forks, bug reports, pull requests, and custom builds. Its dependencies have their own licenses. In particular:
-
-- **Interception** (external keyboard/mouse driver and library) has **separate distribution terms**; the complete driver stack is **not wholly open source**. Review [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) and [`DRIVER_SETUP.md`](DRIVER_SETUP.md) before redistributing binaries, particularly for commercial use.
-- **MinHook** is a third-party component with its own permissive license and notices.
-
-## Safe startup and mouse recovery (12.9.2)
-
-To prevent a saved Player 2 assignment from taking over the Windows mouse unexpectedly,
-CoopInput now **always opens with Input OFF** and leaves saved device assignments
-unclaimed. Drag devices onto player cards manually, or choose **Restore saved** and
-confirm the warning. Turn **Input ON** only when you have a second physical input
-method available. **Input OFF** returns even assigned secondary mice and keyboards
-immediately to normal Windows control; **Ctrl+Alt+F12** remains the emergency
-release shortcut. If the capture thread fails, its driver context is now closed
-in a `finally` block.
-
-## Game-hook initialization diagnostics (unreleased fix)
-
-The source files and Windows build workflow are now available at the repository root. The
-older `CoopInput-Setup-12.9.0.exe` and `CoopInput source code.zip` in the root are **legacy
-uploads** and do **not** include this unreleased game-hook fix. Use a successful Windows CI
-artifact or rebuild from the current source before testing changes.
-
-- A Windows game-hook attach may take up to **13 seconds** while the injected DLL looks
-  for the selected game's visible window (up to 10 seconds) and installs its hooks.
-- On failure, CoopInput now reports a startup stage in `coopinput_debug.log` and unloads
-  the failed game DLL to make retries possible.
-- For Minecraft **Java Edition**, open the game fully before attaching its window. Start
-  with `RAW` mouse mode; try `BOTH` only if needed. Use a supported offline/LAN setup.
-- CoopInput is **not** intended to bypass anti-cheat or protected-process restrictions.
-  Do not inject into Roblox; Roblox client modification is not supported.
-- The Interception kernel driver still requires a separate administrator-approved
-  installation; a new application build cannot install it automatically.
-
-See [Game hook troubleshooting](docs/GAME_HOOK_TROUBLESHOOTING.md) for error-stage meanings,
-repeatable tests and remaining compatibility limits.
-
-## Known limitations and responsible use
-
-- Compatibility varies by game, anti-cheat system, Windows version and application input APIs.
-- Game hooking can trigger antivirus or anti-cheat warnings. Prefer offline/LAN games and software where hooking is permitted; do not use CoopInput to bypass anti-cheat restrictions.
-- Secondary cursors do **not** create extra independent Windows desktops, foreground windows or protected-session access.
-- Accessibility-based taskbar and browser control is **best-effort**, not guaranteed.
-- The Windows installer/build scripts are provided as source; independently test resulting executables on Windows before public release.
-
----
-
-**CoopInput makes it easier to share one Windows computer across multiple keyboards and mice, while keeping control over how each player's devices behave.**
+For the public open-source GitHub project, the `vendor/` DLL is excluded, so continuous integration builds are source-only and require the library separately. Never advertise the Interception dependency as covered by CoopInput's MIT license. Commercial use needs appropriate upstream licensing.

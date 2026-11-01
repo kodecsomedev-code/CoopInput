@@ -46,11 +46,11 @@ jobs:
         run: .\BUILD_RELEASE.ps1
       - uses: actions/upload-artifact@v4
         with:
-          name: CoopInput-12.9.2-Windows-Installer
-          path: output/CoopInput-Setup-12.9.2.exe
+          name: CoopInput-12.9.3-Windows-Installer
+          path: output/CoopInput-Setup-12.9.3.exe
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
-          name: CoopInput-12.9.2-Portable
+          name: CoopInput-12.9.3-Portable
           path: dist/CoopInput/
           if-no-files-found: error

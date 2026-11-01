@@ -1,5 +1,5 @@
 """
-CoopInput v12.9.2 - v8 engine / virtual desktop dragging / polished device board, strict input isolation and automatic keyboard detection
+CoopInput v12.9.3 - v8 engine / virtual desktop dragging / polished device board, strict input isolation and automatic keyboard detection
 - Arraste dispositivos (mouse/teclado) entre areas: Dispositivos, Jogador 1..4
 - Jogador 1 = principal (cursor normal do Windows). Jogadores 2+ = isolados,
   cada um com cursor virtual proprio (cor diferente) e tela escolhida.
@@ -253,6 +253,18 @@ def hook_boot_status(link):
     return (int(link.sh.pad[1]) >> 16) & 0xFF
 
 
+def hook_startup_diagnostic(pid, since):
+    """Collect a worker failure that occurs before it can report over IPC."""
+    path = os.path.join(USER_DATA_DIR, f"hook_startup_{pid}.log")
+    try:
+        if os.stat(path).st_mtime < since - 1:
+            return ""  # Ignore stale logs from a previous process with this PID.
+        with open(path, encoding="utf-8", errors="replace") as handle:
+            return handle.read(300).strip().replace("\r", " ").replace("\n", " ")
+    except OSError:
+        return ""
+
+
 def hook_binary_compatible(path):
     """Fail closed rather than injecting an old DLL with a broken message queue.
 
@@ -488,6 +500,7 @@ def attach(p, pid, title):
     if any(l.pid == pid and q != p for q, l in links.items()):
         return False, "Esse jogo ja esta anexado a outro jogador."
     log.info("Attaching Player %d to '%s' (pid %d), hook %s", p, title, pid, HOOK_PATH)
+    attach_started = time.time()
     h = k32.OpenProcess(0x0002 | 0x0400 | 0x0008 | 0x0020 | 0x0010, False, pid)
     if not h:
         return False, ("Nao consegui abrir o processo (erro %d). Se o jogo roda como admin, "
@@ -524,6 +537,9 @@ def attach(p, pid, title):
             stage = hook_boot_status(lk)
             log.error("Game hook initialization failed for pid %d: stage=0x%02X flags=0x%X abi=%d", pid,
                       stage, lk.sh.flags, lk.sh.pad[0])
+            startup_diag = hook_startup_diagnostic(pid, attach_started)
+            if startup_diag:
+                log.error("Game hook worker diagnostic: %s", startup_diag)
             old_api = bool(lk.sh.flags & 1) and lk.sh.pad[0] != HOOK_ABI_VERSION
             # A failed hook must be allowed to shut down while the mapping is still valid.
             lk.push(EV_EXIT)
@@ -532,6 +548,7 @@ def attach(p, pid, title):
             return False, ("The game's hook is using the wrong ABI. Close the game, rebuild the v8 DLL, "
                            "and restart both applications." if old_api else
                            HOOK_BOOT_STAGES.get(stage, f"Unknown hook initialization status 0x{stage:02X}.") +
+                           (f" DLL diagnostic: {startup_diag}." if startup_diag else "") +
                            " Restart the game before retrying. See coopinput_debug.log for details.")
         lk.sh.flags = (lk.sh.flags & ~6) | MOUSE_MODE_BITS[mouse_modes[p]]
         links[p] = lk
@@ -1483,7 +1500,7 @@ def make_overlay(root, color, fallback_color=None):
 class App:
     def __init__(self, root):
         self.root = root
-        root.title("CoopInput  ·  Studio v12.9.2")
+        root.title("CoopInput  ·  Studio v12.9.3")
         try:
             icon_file = os.path.join(HERE, "CoopInput.ico")
             if os.path.isfile(icon_file):
@@ -1500,6 +1517,7 @@ class App:
         log.info("Monitores: %s", self.mons)
         self.mon_idx = {p: len(self.mons) - 1 for p in range(2, MAXP + 1)}
         self.overlays, self.visible, self.last_pos = {}, {}, {}
+        self.cursor_status = {}
         self.pointer_probe = {}  # player -> (monotonic timestamp, x, y, shape)
         self.zones, self.zone_rect, self.leds = {}, {}, {}
         self.drag, self.nseen, self.nb, self.resize_job = None, -1, 0, None
@@ -2252,8 +2270,16 @@ class App:
             # captures the cursor in gameplay (ClipCursor(rect)) and releases it
             # for menus (ClipCursor(NULL)). A manual hotkey can override either.
             show = bool(want and virtual_cursor_visible(p))
+            status = (bool(want), show, cursor_display_modes[p], cursor_manual_overrides[p])
+            if self.cursor_status.get(p) != status:
+                self.cursor_status[p] = status
+                log.info("Player %d virtual cursor: %s; assigned mouse=%s, input=%s, mode=%s, "
+                         "override=%s, screen_position=%s", p, "shown" if show else "hidden",
+                         bool(want), bool(state["forward"]), cursor_display_modes[p],
+                         cursor_manual_overrides[p], tuple(pos[p]))
             if show and not self.visible.get(p):
                 ov.deiconify()
+                ov.lift()
             elif not show and ov and self.visible.get(p):
                 ov.withdraw()
             self.visible[p] = show
@@ -2730,7 +2756,7 @@ class App:
         for p in range(2, state["players"] + 1):
             has_mouse = any(d > 10 and v == p for d, v in list(assign.items()))
             lk = links.get(p)
-            want_visible = has_mouse and virtual_cursor_visible(p)
+            want_visible = state["forward"] and has_mouse and virtual_cursor_visible(p)
             if self.visible.get(p, False) != want_visible:
                 self.refresh_cursors()
                 self.redraw()
