@@ -8,7 +8,22 @@ on:
     tags: ["v*"]
 
 jobs:
+  offline-tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Validate source and run offline regressions
+        shell: bash
+        run: |
+          python tools/check_release.py
+          for test_file in test_*.py; do python "$test_file"; done
   build:
+    needs: offline-tests
     runs-on: windows-2022
     env:
       PYTHONUTF8: "1"
@@ -20,14 +35,9 @@ jobs:
         with:
           python-version: '3.14'
           architecture: 'x64'
-      - name: Validate source and run offline regressions
+      - name: Validate clean Windows build source
         shell: pwsh
-        run: |
-          python tools/check_release.py
-          Get-ChildItem -Filter 'test_*.py' | ForEach-Object {
-            python $_.FullName
-            if ($LASTEXITCODE -ne 0) { throw "Regression failed: $($_.Name)" }
-          }
+        run: python tools/check_release.py
       - name: Install Inno Setup 6
         shell: pwsh
         run: choco install innosetup -y --no-progress
