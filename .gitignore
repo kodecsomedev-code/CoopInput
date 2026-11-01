@@ -1,0 +1,23 @@
+# Build artifacts and local state
+__pycache__/
+*.py[cod]
+*.obj
+*.lib
+*.exp
+*.dll
+*.exe
+*.bak
+*.log
+coopinput_config.json
+.venv/
+venv/
+build/
+dist/
+output/
+.release/
+*.spec
+.pytest_cache/
+.idea/
+.vscode/
+.DS_Store
+# Keep only the clean source tree in public GitHub.

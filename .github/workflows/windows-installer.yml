@@ -1,0 +1,56 @@
+name: Windows installer
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: ["main"]
+    tags: ["v*"]
+
+jobs:
+  offline-tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Validate source and run offline regressions
+        shell: bash
+        run: |
+          python tools/check_release.py
+          for test_file in test_*.py; do python "$test_file"; done
+  build:
+    needs: offline-tests
+    runs-on: windows-2022
+    env:
+      PYTHONUTF8: "1"
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          architecture: 'x64'
+      - name: Validate clean Windows build source
+        shell: pwsh
+        run: python tools/check_release.py
+      - name: Install Inno Setup 6
+        shell: pwsh
+        run: choco install innosetup -y --no-progress
+      - name: Check clean source and build installer
+        shell: pwsh
+        run: .\BUILD_RELEASE.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CoopInput-12.9.1-Windows-Installer
+          path: output/CoopInput-Setup-12.9.1.exe
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CoopInput-12.9.1-Portable
+          path: dist/CoopInput/
+          if-no-files-found: error

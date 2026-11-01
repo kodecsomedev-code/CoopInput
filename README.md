@@ -4,7 +4,7 @@
 
 CoopInput is an open-source Windows application that assigns physical keyboards and mice to different players, routes secondary input to compatible games, and displays independent virtual mouse pointers. It's designed for local multiplayer, multi-device experiments, and advanced desktop control—without handing Player 2's physical mouse over to Player 1's system cursor.
 
-> **Current version:** v12.9 · **Platform:** Windows 10/11, 64-bit · **Core:** Python + C/Win32 · **App source license:** MIT (third-party components have their own terms)
+> **Source candidate:** v12.9.1 (unreleased; Windows CI artifact available after successful build) · **Platform:** Windows 10/11, 64-bit · **Core:** Python + C/Win32 · **App source license:** MIT (third-party components have their own terms)
 
 ## Features
 
@@ -83,7 +83,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\BUILD_RELEASE.ps1
 When successful, the script builds the game-hook DLL, uses PyInstaller to bundle the Windows app, and produces the installer at:
 
 ```text
-output/CoopInput-Setup-12.9.0.exe
+output/CoopInput-Setup-12.9.1.exe
 ```
 
 For direct Python development, install the required Interception library and driver as documented, then run:
@@ -100,6 +100,27 @@ CoopInput's **original application code is MIT-licensed** and welcomes forks, bu
 
 - **Interception** (external keyboard/mouse driver and library) has **separate distribution terms**; the complete driver stack is **not wholly open source**. Review [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) and [`DRIVER_SETUP.md`](DRIVER_SETUP.md) before redistributing binaries, particularly for commercial use.
 - **MinHook** is a third-party component with its own permissive license and notices.
+
+## Game-hook initialization diagnostics (unreleased fix)
+
+The source files and Windows build workflow are now available at the repository root. The
+older `CoopInput-Setup-12.9.0.exe` and `CoopInput source code.zip` in the root are **legacy
+uploads** and do **not** include this unreleased game-hook fix. Use a successful Windows CI
+artifact or rebuild from the current source before testing changes.
+
+- A Windows game-hook attach may take up to **13 seconds** while the injected DLL looks
+  for the selected game's visible window (up to 10 seconds) and installs its hooks.
+- On failure, CoopInput now reports a startup stage in `coopinput_debug.log` and unloads
+  the failed game DLL to make retries possible.
+- For Minecraft **Java Edition**, open the game fully before attaching its window. Start
+  with `RAW` mouse mode; try `BOTH` only if needed. Use a supported offline/LAN setup.
+- CoopInput is **not** intended to bypass anti-cheat or protected-process restrictions.
+  Do not inject into Roblox; Roblox client modification is not supported.
+- The Interception kernel driver still requires a separate administrator-approved
+  installation; a new application build cannot install it automatically.
+
+See [Game hook troubleshooting](docs/GAME_HOOK_TROUBLESHOOTING.md) for error-stage meanings,
+repeatable tests and remaining compatibility limits.
 
 ## Known limitations and responsible use
 
