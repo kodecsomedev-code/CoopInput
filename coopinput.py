@@ -1,5 +1,5 @@
 """
-CoopInput v12.9.1 - v8 engine / virtual desktop dragging / polished device board, strict input isolation and automatic keyboard detection
+CoopInput v12.9.2 - v8 engine / virtual desktop dragging / polished device board, strict input isolation and automatic keyboard detection
 - Arraste dispositivos (mouse/teclado) entre areas: Dispositivos, Jogador 1..4
 - Jogador 1 = principal (cursor normal do Windows). Jogadores 2+ = isolados,
   cada um com cursor virtual proprio (cor diferente) e tela escolhida.
@@ -582,7 +582,9 @@ hwids = {}
 last_active = {}
 pos = [None] + [[0, 0] for _ in range(MAXP)]                    # cursor virtual por jogador
 bounds = [None] + [[0, 0, 1920, 1080] for _ in range(MAXP)]     # tela por jogador
-state = {"running": True, "forward": True, "panic": False, "error": None, "players": 2}
+# Fail-safe startup: Interception can identify devices while unarmed, but must
+# pass every physical packet through until the user explicitly enables input.
+state = {"running": True, "forward": False, "panic": False, "error": None, "players": 2}
 # Raw key state belongs to a PHYSICAL keyboard, never mixes different keyboards.
 # Profiles are *keyboard layout labels*, not scan-code caps: a 70% board may
 # still send any normal/E0/E1 code, and custom macro keys are not guaranteed by
@@ -1116,6 +1118,8 @@ def on_key(k, player, device):
         return False
     if player < 2:
         return False
+    if not state["forward"]:
+        return False  # Input OFF is a real physical-device release mode.
     if desktop_toggle_event(player, device, sc, up):
         return True
     if desktop_control[player]:
@@ -1201,10 +1205,9 @@ BUTTON_EVENTS = ((0x001, 0, True), (0x002, 0, False),
 
 
 def on_mouse(m, player, device):
-    # IMMUTABLE OWNERSHIP RULE: only actual Player 1/unassigned mice may go
-    # through interception_send(). Player 2+ mice are ALWAYS consumed here,
-    # including while the Windows-keyboard mode is ON.
-    if player < 2:
+    # While armed, Player 2+ mice stay isolated (including Win Keys mode).
+    # While Input is OFF, return every mouse packet to the real Windows cursor.
+    if player < 2 or not state["forward"]:
         return False
     lk = links.get(player)
     # When Windows keyboard keys are enabled, virtual pointer events target
@@ -1321,6 +1324,16 @@ def _capture():
         state["error"] = "Driver Interception nao encontrado. Instale (como admin) e reinicie o PC."
         ready.set()
         return
+    try:
+        _capture_events(ctx)
+    finally:
+        # Even an unexpected input-processing exception must release the
+        # driver context rather than leave physical devices intercepted.
+        log.info("Encerrando captura e devolvendo dispositivos ao Windows")
+        dll.interception_destroy_context(ctx)
+
+
+def _capture_events(ctx):
     dll.interception_set_filter(ctx, KB_PRED, 0xFFFF)
     dll.interception_set_filter(ctx, MS_PRED, 0xFFFF)
     for d in range(1, 21):
@@ -1381,8 +1394,6 @@ def _capture():
         if not swallowed:
             if dll.interception_send(ctx, dev, ctypes.byref(st), 1) < 1:
                 log.warning("send falhou: %s", dev_name(dev))
-    log.info("Encerrando captura e devolvendo dispositivos ao Windows")
-    dll.interception_destroy_context(ctx)
 
 
 # ---------- UI ----------
@@ -1472,7 +1483,7 @@ def make_overlay(root, color, fallback_color=None):
 class App:
     def __init__(self, root):
         self.root = root
-        root.title("CoopInput  ·  Studio v12.9.1")
+        root.title("CoopInput  ·  Studio v12.9.2")
         try:
             icon_file = os.path.join(HERE, "CoopInput.ico")
             if os.path.isfile(icon_file):
@@ -1500,6 +1511,8 @@ class App:
         self.saved_profiles = {}
         self.saved_maxcodes = {}
         self.saved_cursor_hotkeys = {}
+        self.restore_saved_on_start = False
+        self.assignments_modified = False
         self.hotkey_dialogs = {}
         self.applied = set()
         self.load_config()
@@ -1557,6 +1570,11 @@ class App:
     def save_config(self):
         try:
             keys = self.dev_keys()
+            # Keep saved assignments until the user explicitly restores,
+            # replaces, or resets them. Theme changes must not erase them.
+            saved_assign = ({keys[d]: p for d, p in list(assign.items()) if p and d in keys}
+                            if self.assignments_modified or self.restore_saved_on_start
+                            else dict(self.saved))
             cfg = {"theme": self.theme, "players": state["players"], "forward": state["forward"],
                    "monitors": {str(p): i for p, i in self.mon_idx.items()},
                    "mouse_modes": {str(p): mouse_modes[p] for p in mouse_modes},
@@ -1569,7 +1587,7 @@ class App:
                                 "code": bind["code"], "flags": bind["flags"]}
                        for p, bind in cursor_hotkeys.items()
                        if bind and bind["device"] in keys},
-                   "assign": {keys[d]: p for d, p in list(assign.items()) if p and d in keys},
+                   "assign": saved_assign,
                    "keyboard_profiles": {keys[d]: v for d, v in keyboard_profiles.items() if d in keys},
                    "keyboard_maxcode": {keys[d]: v for d, v in keyboard_maxcode.items() if d in keys}}
             with open(CFG_PATH, "w", encoding="utf-8") as f:
@@ -1589,7 +1607,8 @@ class App:
         theme = cfg.get('theme', 'dark')
         self.theme = theme if theme in THEMES else 'dark'
         state["players"] = min(max(int(cfg.get("players", 2)), 2), MAXP)
-        state["forward"] = bool(cfg.get("forward", True))
+        # Never auto-arm physical interception based on a previous session.
+        state["forward"] = False
         for p, i in cfg.get("monitors", {}).items():
             if p.isdigit() and int(p) in self.mon_idx and 0 <= i < len(self.mons):
                 self.mon_idx[int(p)] = i
@@ -1614,7 +1633,31 @@ class App:
         for p, mode in cfg.get("mouse_modes", {}).items():
             if p.isdigit() and int(p) in mouse_modes and mode in MOUSE_MODE_BITS:
                 mouse_modes[int(p)] = mode
-        log.info("Config carregada: %d jogadores", state["players"])
+        log.info("Config loaded: %d players. Input OFF; saved device assignments await manual restore.", state["players"])
+
+    def restore_saved_assignments(self):
+        pairs = [(d, self.saved[key]) for d, key in self.dev_keys().items()
+                 if isinstance(self.saved.get(key), int)
+                 and not isinstance(self.saved.get(key), bool)
+                 and 1 <= self.saved[key] <= state["players"]]
+        if not pairs:
+            messagebox.showinfo("CoopInput", "No saved devices are currently connected.", parent=self.root)
+            return
+        if not messagebox.askyesno(
+            "Restore saved devices?",
+            "This may take control of a physical mouse or keyboard for Player 2.\n\n"
+            "Keep another mouse or trackpad available. Emergency release: Ctrl+Alt+F12.\n\n"
+            f"Restore {len(pairs)} saved device assignment(s)?",
+            parent=self.root,
+        ):
+            return
+        self.restore_saved_on_start = True
+        self.applied.clear()
+        self.sync_devices()
+        self.assignments_modified = True
+        self.save_config()
+        self.refresh_cursors()
+        self.redraw()
 
     def sync_devices(self):
         """Aplica a config salva aos dispositivos conforme eles aparecem."""
@@ -1630,7 +1673,7 @@ class App:
                 except (ValueError, TypeError):
                     keyboard_maxcode[d] = 65535
             p = self.saved.get(key)
-            if p and 1 <= p <= state["players"]:
+            if self.restore_saved_on_start and isinstance(p, int) and not isinstance(p, bool) and 1 <= p <= state["players"]:
                 assign[d] = p
                 log.info("%s -> Jogador %d (config salva)", dev_name(d), p)
             for player, saved in self.saved_cursor_hotkeys.items():
@@ -2151,11 +2194,16 @@ class App:
             for d, p in list(assign.items()):
                 release_device(d, p)
         state["forward"] = not state["forward"]
+        log.info("Input forwarding %s (explicit user action)", "ON" if state["forward"] else "OFF")
         self.save_config()
+        self.refresh_cursors()
         self.redraw()
 
     def reset(self):
         log.info("Reset: tudo para a lista de dispositivos")
+        self.assignments_modified = True
+        self.restore_saved_on_start = False
+        self.saved = {}
         desktop_drag.cancel_all()
         for d, old in list(assign.items()):
             release_device(d, old)
@@ -2171,6 +2219,7 @@ class App:
         old = assign.get(d, 0)
         if old == p:
             return
+        self.assignments_modified = True
         release_device(d, old)
         for player, bind in cursor_hotkeys.items():
             if bind and bind['device'] == d and old != p:
@@ -2193,7 +2242,7 @@ class App:
 
     def refresh_cursors(self):
         for p in range(2, MAXP + 1):
-            want = p <= state["players"] and any(
+            want = state["forward"] and p <= state["players"] and any(
                 v == p and d > 10 for d, v in list(assign.items()))
             if want and p not in self.overlays:
                 self.overlays[p] = make_overlay(self.root, self.cursor_colors[p], COLORS[p])
@@ -2254,8 +2303,11 @@ class App:
                       font=(FONT, 23, 'bold'))
         c.create_text(191, 37, text='STUDIO', anchor='w', fill=ACCENT,
                       font=(FONT, 10, 'bold'))
-        c.create_text(24, 82, text='Drag devices to assign a player. Open your game normally, then attach its window.',
+        c.create_text(24, 82, text='Safe start: Input OFF. Assign devices, then enable input. Emergency: Ctrl+Alt+F12.',
                       anchor='w', fill=MUTED, font=(FONT, 10))
+        if self.saved and not self.restore_saved_on_start and not self.assignments_modified:
+            self.btn(W - 22, 82, 'Restore saved', self.restore_saved_assignments,
+                     w=148, h=30)
         x = W - 22
         x = self.btn(x, 35, 'Find P2 devices', self.open_device_guide,
                      fill=ACCENT, fg=BTNFG, w=145, h=36)

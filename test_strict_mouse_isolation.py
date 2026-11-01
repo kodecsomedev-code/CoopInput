@@ -54,13 +54,19 @@ def env_for(enabled,forward=True):
     }
     return env,link,moves,clicks,wheels
 
-# Player 2 physical events are ALWAYS consumed (never sent via interception_send),
-# including when the Windows keyboard shortcut mode is enabled or forwarding is off.
+# Player 2 physical events are isolated only while Input is armed. Input OFF
+# must return the real mouse to Windows immediately, including for Player 2.
 for enabled in (False,True):
     for forward in (False,True):
         env,link,moves,clicks,wheels=env_for(enabled,forward)
         fn=build('on_mouse',env)
-        assert fn(Mouse(x=10,y=14,buttons=0x001|0x400,wheel=120),2,12) is True
+        result=fn(Mouse(x=10,y=14,buttons=0x001|0x400,wheel=120),2,12)
+        if not forward:
+            assert result is False
+            assert env['pos'][2]==[300,280]
+            assert not link.events and not moves and not clicks and not wheels
+            continue
+        assert result is True
         assert env['pos'][2]==[310,294]
         assert fn(Mouse(x=0,y=0,buttons=0x002),2,12) is True
         assert fn(Mouse(),1,11) is False
@@ -69,9 +75,7 @@ for enabled in (False,True):
             assert moves and clicks and wheels, 'secondary desktop cursor posts events'
         if not enabled and forward:
             assert link.events and not moves and not clicks and not wheels, 'v8 game hook unaffected'
-        if not forward:
-            assert not link.events and not moves and not clicks and not wheels
-print('PASS: P2 mouse physically isolated in all Win Keys and forwarding combinations')
+print('PASS: P2 mouse isolated while armed and physically released while Input OFF')
 
 # Visibility must not follow GLFW's cursor-grab state when the user requests
 # keyboard-only Windows access; no global cursor APIs are used.
